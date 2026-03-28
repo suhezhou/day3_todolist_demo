@@ -45,6 +45,8 @@ private:
     QList<TodoItem> m_items;   // 存储所有任务
     QDate m_currentDate;       // 当前显示的日期
     QString m_filePath;
+    QDate m_lastDate;      // 上次迁移的日期
+    void migrateTasks(const QDate &targetDate);
 };
 
 #endif // TODOMODEL_H

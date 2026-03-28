@@ -19,21 +19,39 @@ TodoModel::TodoModel(QObject *parent)
 
     // 加载已有数据
     loadFromFile();
-
-    // 如果没有任务，添加几条示例（可选）
-    if (m_items.isEmpty()) {
-        QDate today = QDate::currentDate();
-        beginInsertRows(QModelIndex(), 0, 4);
-        m_items.append({getNextId(), "学习 QML", today, today, false});
-        m_items.append({getNextId(), "完成项目报告", today.addDays(1), today, true});
-        m_items.append({getNextId(), "买菜", today, today, false});
-        m_items.append({getNextId(), "锻炼身体", today.addDays(2), today, false});
-        m_items.append({getNextId(), "阅读技术文章", today, today, true});
-        endInsertRows();
-        saveToFile();
+    // 迁移过期任务
+    QDate today = QDate::currentDate();
+    //QDate today = QDate::currentDate().addDays(1);  // 模拟明天(只用于测试）
+    if (today > m_lastDate) {
+        migrateTasks(today);
+        m_lastDate = today;
+        saveToFile();   // 保存迁移后的状态
     }
 }
+void TodoModel::migrateTasks(const QDate &targetDate)
+{
+    int nextId = getNextId();
+    QList<TodoItem> newItems;
 
+    for (const TodoItem &item : m_items) {
+        if (!item.completed && item.dueDate <= m_lastDate) {
+            TodoItem newItem;
+            newItem.id = nextId++;
+            newItem.title = item.title;
+            newItem.dueDate = targetDate;
+            newItem.createdDate = QDate::currentDate();
+            newItem.completed = false;
+            newItems.append(newItem);
+        }
+    }
+
+    if (!newItems.isEmpty()) {
+        int start = m_items.size();
+        beginInsertRows(QModelIndex(), start, start + newItems.size() - 1);
+        m_items.append(newItems);
+        endInsertRows();
+    }
+}
 int TodoModel::rowCount(const QModelIndex &parent) const
 {
     Q_UNUSED(parent);
@@ -202,6 +220,9 @@ int TodoModel::getNextId() const
 
 void TodoModel::saveToFile() const
 {
+    QJsonObject rootObj;
+    rootObj["lastDate"] = m_lastDate.toString(Qt::ISODate);
+
     QJsonArray tasksArray;
     for (const TodoItem &item : m_items) {
         QJsonObject obj;
@@ -212,8 +233,9 @@ void TodoModel::saveToFile() const
         obj["completed"] = item.completed;
         tasksArray.append(obj);
     }
+    rootObj["tasks"] = tasksArray;
 
-    QJsonDocument doc(tasksArray);
+    QJsonDocument doc(rootObj);
     QFile file(m_filePath);
     if (!file.open(QIODevice::WriteOnly)) {
         qWarning() << "无法保存文件:" << m_filePath;
@@ -238,10 +260,24 @@ void TodoModel::loadFromFile()
     file.close();
 
     QJsonDocument doc = QJsonDocument::fromJson(data);
-    if (!doc.isArray())
-        return;
+    QJsonObject rootObj;
+    QJsonArray tasksArray;
 
-    QJsonArray tasksArray = doc.array();
+    // 兼容旧格式（纯数组）
+    if (doc.isArray()) {
+        tasksArray = doc.array();
+        m_lastDate = QDate::currentDate();  // 旧格式没有 lastDate，默认当前日期
+    } else if (doc.isObject()) {
+        rootObj = doc.object();
+        tasksArray = rootObj["tasks"].toArray();
+        m_lastDate = QDate::fromString(rootObj["lastDate"].toString(), Qt::ISODate);
+        if (!m_lastDate.isValid())
+            m_lastDate = QDate::currentDate();
+    } else {
+        return;
+    }
+
+    // 解析任务
     QList<TodoItem> loadedItems;
     for (const QJsonValue &val : tasksArray) {
         QJsonObject obj = val.toObject();
