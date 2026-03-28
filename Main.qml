@@ -3,7 +3,7 @@ import QtQuick.Controls 6.9
 import QtQuick.Layouts 6.9
 import QtQuick.Dialogs
 
-ApplicationWindow {
+Window {
     visible: true
     width: 500
     height: 600
@@ -67,6 +67,7 @@ ApplicationWindow {
 
         ListView {
             id: listView
+            keyNavigationWraps: false
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: todoModel

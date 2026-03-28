@@ -75,47 +75,67 @@ void TodoModel::addItem(const QString &title, const QDate &dueDate)
     if (title.trimmed().isEmpty())
         return;
 
-    // 找到插入位置（按 dueDate 排序，可选，这里简单追加）
-    // 但为了保持模型一致性，我们直接追加到末尾
-    int insertPos = m_items.size();
-    beginInsertRows(QModelIndex(), insertPos, insertPos);
-    m_items.append({getNextId(), title, dueDate, QDate::currentDate(), false});
-    endInsertRows();
+    // 生成新任务
+    TodoItem newItem{getNextId(), title, dueDate, QDate::currentDate(), false};
 
-    // 如果新任务的日期正好是当前显示的日期，需要刷新列表显示
+    // 如果新任务属于当前日期，需要插入到过滤后的视图中
     if (dueDate == m_currentDate) {
-        // 由于我们追加了行，但 rowCount 基于过滤后的结果，需要通知视图数据变化
-        // 更好的方式是使用 dataChanged，但 rowCount 已经变化，简单重置模型
-        beginResetModel();
-        endResetModel();
+        // 获取当前过滤后的任务列表（用于确定插入位置）
+        QList<TodoItem> filtered = filterByDate();
+        int insertPosInFilter = filtered.size();  // 插入到末尾（也可按需排序）
+        // 通知视图：在过滤后列表的第 insertPosInFilter 行插入
+        beginInsertRows(QModelIndex(), insertPosInFilter, insertPosInFilter);
+        // 实际插入到内部数据列表（末尾）
+        m_items.append(newItem);
+        endInsertRows();
     } else {
-        // 不是当前日期，不需要刷新视图，但保存文件仍然需要
+        // 不属于当前日期，直接追加到内部数据列表，视图无变化
+        m_items.append(newItem);
     }
+
     saveToFile();
 }
 
 void TodoModel::removeItem(int id)
 {
-    int row = -1;
+    // 1. 先在内部数据列表中查找要删除的任务的索引
+    int rowInItems = -1;
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {
-            row = i;
+            rowInItems = i;
             break;
         }
     }
-    if (row == -1)
+    if (rowInItems == -1)
         return;
 
-    // 标准删除（底层数据删除）
-    beginRemoveRows(QModelIndex(), row, row);
-    m_items.removeAt(row);
-    endRemoveRows();
+    // 2. 确定该任务是否属于当前显示日期，如果是，还需要知道它在过滤后列表中的索引
+    bool belongsToCurrent = (m_items[rowInItems].dueDate == m_currentDate);
+    int rowInFilter = -1;
+    if (belongsToCurrent) {
+        QList<TodoItem> filtered = filterByDate();
+        for (int j = 0; j < filtered.size(); ++j) {
+            if (filtered[j].id == id) {
+                rowInFilter = j;
+                break;
+            }
+        }
+        // 理论上一定找到，但以防万一
+        if (rowInFilter == -1)
+            return;
+    }
 
-    // 🔥 关键：强制刷新当前日期的显示列表
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0));
-    // 🔥 终极保险：强制整个模型重新刷新
-    beginResetModel();
-    endResetModel();
+    // 3. 根据是否属于当前日期，选择正确的视图删除方式
+    if (belongsToCurrent) {
+        // 从视图中删除该行
+        beginRemoveRows(QModelIndex(), rowInFilter, rowInFilter);
+        // 从内部数据列表中删除
+        m_items.removeAt(rowInItems);
+        endRemoveRows();
+    } else {
+        // 不属于当前日期，直接删除内部数据，视图无变化
+        m_items.removeAt(rowInItems);
+    }
 
     saveToFile();
 }
