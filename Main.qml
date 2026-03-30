@@ -33,6 +33,56 @@ Window {
         }
     }
 
+    Dialog {
+        id: editTaskDialog
+        title: "编辑任务"
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        modal: true
+        width: 320
+
+        property int taskId: -1
+        property string oldTitle: ""
+        property date oldDueDate: new Date()
+
+        ColumnLayout {
+            TextField {
+                id: editTitleInput
+                Layout.fillWidth: true
+                placeholderText: "任务标题"
+                text: editTaskDialog.oldTitle
+            }
+            // 日期选择器可以使用 DatePicker 或者 TextField 手动输入
+            // 简单起见，用 TextField 让用户输入 yyyy-MM-dd 格式
+            TextField {
+                id: editDueDateInput
+                Layout.fillWidth: true
+                placeholderText: "截止日期 (yyyy-MM-dd)"
+                text: Qt.formatDate(editTaskDialog.oldDueDate, "yyyy-MM-dd")
+            }
+        }
+
+        onAccepted: {
+            let newTitle = editTitleInput.text.trim()
+            let dateStr = editDueDateInput.text.trim()
+            let parts = dateStr.split('-')
+            if (parts.length === 3) {
+                let y = parseInt(parts[0])
+                let m = parseInt(parts[1]) - 1
+                let d = parseInt(parts[2])
+                let newDueDate = new Date(y, m, d)
+                if (newTitle && !isNaN(newDueDate.getTime())) {
+                    todoModel.updateTask(editTaskDialog.taskId, newTitle, newDueDate)
+                }
+            }
+            // 关闭对话框
+            editTaskDialog.close()
+        }
+
+        onRejected: {
+            editTaskDialog.close()
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 15
@@ -99,7 +149,15 @@ Window {
                             font.pixelSize: 12
                         }
                     }
-
+                    Button {
+                        text: "编辑"
+                        onClicked: {
+                            editTaskDialog.taskId = model.id
+                            editTaskDialog.oldTitle = model.title
+                            editTaskDialog.oldDueDate = model.dueDate
+                            editTaskDialog.open()
+                        }
+                    }
                     Button {
                         text: "删除"
                         onClicked: {

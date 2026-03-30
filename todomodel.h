@@ -32,6 +32,8 @@ public:
     Q_INVOKABLE void setCurrentDate(const QDate &date);
 
     QDate currentDate() const { return m_currentDate; }
+public slots:
+    void updateTask(int id, const QString &newTitle, const QDate &newDueDate);
 
 signals:
     void currentDateChanged();

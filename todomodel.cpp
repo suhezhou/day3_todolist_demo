@@ -296,3 +296,40 @@ void TodoModel::loadFromFile()
         endResetModel();
     }
 }
+void TodoModel::updateTask(int id, const QString &newTitle, const QDate &newDueDate)
+{
+    int itemIndex = -1;
+    for (int i = 0; i < m_items.size(); ++i) {
+        if (m_items[i].id == id) {
+            itemIndex = i;
+            break;
+        }
+    }
+    if (itemIndex == -1) return;
+
+    TodoItem &item = m_items[itemIndex];
+    bool changed = false;
+    if (item.title != newTitle) {
+        item.title = newTitle;
+        changed = true;
+    }
+    if (item.dueDate != newDueDate) {
+        item.dueDate = newDueDate;
+        changed = true;
+    }
+    if (!changed) return;
+
+    // 如果任务属于当前显示的日期，或修改后影响了当前视图，刷新模型
+    if (item.dueDate == m_currentDate || item.dueDate != m_currentDate) {
+        // 为了简单，只要有任何修改，就重置整个模型（确保视图正确更新）
+        beginResetModel();
+        endResetModel();
+    } else {
+        // 如果任务不在当前日期显示，但仍需更新内部数据，且视图不变，只需要发出 dataChanged
+        // 但这里已重置模型，所以统一用重置。
+        beginResetModel();
+        endResetModel();
+    }
+
+    saveToFile();
+}
