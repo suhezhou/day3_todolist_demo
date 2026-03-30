@@ -1,3 +1,4 @@
+<img width="754" height="947" alt=“b73ae2a516ebffd506192a780418cddd” src="https://github.com/user-attachments/assets/4e191fbe-5810-48a7-9778-da6c9961d437" /><img width="754" height="947" alt="86066ab56ae71fba04ca10f4aa921496" src="https://github.com/user-attachments/assets/0100dc9b-2a7c-4e55-bb24-7354971ac9d0" /><img width="754" height="947" alt="f6cc30056b9f648e52ad5b52d7f55d45" src="https://github.com/user-attachments/assets/52b22080-b120-4176-ab9c-950396193547" /><img width="754" height="947" alt="07e081511729961c0581209137c025b6" src="https://github.com/user-attachments/assets/f51b4e4a-0870-4b72-8c20-2caa6967cd77" /><img width="754" height="947" alt="494ae65476ed62950009d047f7a50474" src="https://github.com/user-attachments/assets/e97f3480-a4b9-443f-8113-3165649da65a" />
 # 待办事项列表演示
 
 一个基于 **Qt 6** 和 **QML** 的跨平台待办事项应用，支持任务管理、日期筛选、自动迁移过期任务及自动保存。
@@ -44,7 +45,14 @@
 - **删除任务**：点击任务右侧的“删除”按钮。  
 - **切换完成状态**：勾选任务前的复选框。  
 - **按日期查看**：修改顶部的日期输入框，列表将只显示该日期下的任务。  
-- **视图切换**：通过底部的 `TabBar` 可在“全部任务”和“今日待办”之间切换（今日待办仅显示未完成且截止日期为今天的任务）。  
+- **视图切换**：通过底部的 `TabBar` 可在“全部任务”和“今日待办”之间切换（今日待办仅显示未完成且截止日期为今天的任务）。
+
+![正在上传 07e081511729961c0581209137c025b6.png…]()
+![正在上传 494ae65476ed62950009d047f7a50474.png…]()
+![正在上传 f6cc30056b9f648e52ad5b52d7f55d45.png…]()
+![正在上传 86066ab56ae71fba04ca10f4aa921496.png…]()
+![正在上传 b73ae2a516ebffd506192a780418cddd.png…]()
+
 
 > 任务数据保存在系统应用数据目录下的 `tasks.json` 文件中（例如 Windows 下为 `%APPDATA%\MyCompany\TodoListDemo\tasks.json`）。
 
