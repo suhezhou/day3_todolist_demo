@@ -4,6 +4,7 @@
 #include <QAbstractListModel>
 #include <QList>
 #include <QDate>
+#include <QTimer>           // 新增
 #include "todoitem.h"
 
 class TodoModel : public QAbstractListModel
@@ -27,6 +28,7 @@ public:
     Q_ENUM(FilterMode)   // 使枚举在 QML 中可用
 
     explicit TodoModel(QObject *parent = nullptr);
+    ~TodoModel();
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -54,6 +56,7 @@ private:
     QList<TodoItem> filteredItems() const;         // 按当前过滤模式过滤
     void migrateTasks(const QDate &targetDate);
 
+    QTimer m_saveTimer;
     QList<TodoItem> m_items;
     QDate m_currentDate;
     QString m_filePath;

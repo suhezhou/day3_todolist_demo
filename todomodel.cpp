@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QDebug>
+#include <QCoreApplication>
 
 TodoModel::TodoModel(QObject *parent)
     : QAbstractListModel(parent), m_currentDate(QDate::currentDate())
@@ -27,6 +28,18 @@ TodoModel::TodoModel(QObject *parent)
         m_lastDate = today;
         saveToFile();   // 保存迁移后的状态
     }
+    // 自动保存定时器：每 30 秒触发一次
+    m_saveTimer.setInterval(30000);
+    connect(&m_saveTimer, &QTimer::timeout, this, &TodoModel::saveToFile);
+    m_saveTimer.start();
+
+    // 应用退出时保存一次
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &TodoModel::saveToFile);
+}
+TodoModel::~TodoModel()
+{
+    m_saveTimer.stop();      // 停止定时器
+    saveToFile();            // 最后保存一次
 }
 void TodoModel::migrateTasks(const QDate &targetDate)
 {
