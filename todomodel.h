@@ -10,6 +10,7 @@ class TodoModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(QDate currentDate READ currentDate WRITE setCurrentDate NOTIFY currentDateChanged)
+    Q_PROPERTY(FilterMode filterMode READ filterMode WRITE setFilterMode NOTIFY filterModeChanged)
 
 public:
     enum Roles {
@@ -19,6 +20,11 @@ public:
         CreatedDateRole,
         CompletedRole
     };
+    enum FilterMode {
+        AllTasks,
+        TodayTasks
+    };
+    Q_ENUM(FilterMode)   // 使枚举在 QML 中可用
 
     explicit TodoModel(QObject *parent = nullptr);
 
@@ -30,25 +36,29 @@ public:
     Q_INVOKABLE void removeItem(int id);
     Q_INVOKABLE void setCompleted(int id, bool completed);
     Q_INVOKABLE void setCurrentDate(const QDate &date);
+    Q_INVOKABLE void updateTask(int id, const QString &newTitle, const QDate &newDueDate);
 
     QDate currentDate() const { return m_currentDate; }
-public slots:
-    void updateTask(int id, const QString &newTitle, const QDate &newDueDate);
+    FilterMode filterMode() const { return m_filterMode; }
+    void setFilterMode(FilterMode mode);
 
 signals:
     void currentDateChanged();
+    void filterModeChanged();
 
 private:
     void saveToFile() const;
     void loadFromFile();
-    int getNextId() const;                 // 获取下一个可用的 id
-    QList<TodoItem> filterByDate() const;  // 返回当前日期下的任务列表（用于 rowCount 和 data）
-
-    QList<TodoItem> m_items;   // 存储所有任务
-    QDate m_currentDate;       // 当前显示的日期
-    QString m_filePath;
-    QDate m_lastDate;      // 上次迁移的日期
+    int getNextId() const;
+    QList<TodoItem> filterByDate() const;          // 原有按日期过滤（可保留）
+    QList<TodoItem> filteredItems() const;         // 按当前过滤模式过滤
     void migrateTasks(const QDate &targetDate);
+
+    QList<TodoItem> m_items;
+    QDate m_currentDate;
+    QString m_filePath;
+    QDate m_lastDate;
+    FilterMode m_filterMode = AllTasks;
 };
 
 #endif // TODOMODEL_H

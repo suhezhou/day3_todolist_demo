@@ -2,7 +2,7 @@ import QtQuick 6.9
 import QtQuick.Controls 6.9
 import QtQuick.Layouts 6.9
 import QtQuick.Dialogs
-
+import TodoModel 1.0
 Window {
     visible: true
     width: 500
@@ -114,10 +114,20 @@ Window {
             Layout.alignment: Qt.AlignRight
             onClicked: addTaskDialog.open()
         }
-
+        TabBar {
+            id: tabBar
+            Layout.fillWidth: true
+            TabButton {
+                text: "全部任务"
+                onClicked: todoModel.filterMode = TodoModel.AllTasks
+            }
+            TabButton {
+                text: "今日待办"
+                onClicked: todoModel.filterMode = TodoModel.TodayTasks
+            }
+        }
         ListView {
             id: listView
-            keyNavigationWraps: false
             Layout.fillWidth: true
             Layout.fillHeight: true
             model: todoModel

@@ -10,7 +10,8 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     TodoModel todoModel;
-
+    // 在 main 函数中，创建引擎前
+    qmlRegisterUncreatableType<TodoModel>("TodoModel", 1, 0, "TodoModel", "Cannot create");
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("todoModel", &todoModel);
 

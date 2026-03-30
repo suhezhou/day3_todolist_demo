@@ -46,17 +46,17 @@ void TodoModel::migrateTasks(const QDate &targetDate)
     }
 
     if (!newItems.isEmpty()) {
-        int start = m_items.size();
-        beginInsertRows(QModelIndex(), start, start + newItems.size() - 1);
         m_items.append(newItems);
-        endInsertRows();
+        // 迁移后刷新模型
+        beginResetModel();
+        endResetModel();
+        saveToFile();
     }
 }
 int TodoModel::rowCount(const QModelIndex &parent) const
 {
     Q_UNUSED(parent);
-    // 返回当前日期下的任务数
-    return filterByDate().size();
+    return filteredItems().size();
 }
 
 QVariant TodoModel::data(const QModelIndex &index, int role) const
@@ -64,7 +64,7 @@ QVariant TodoModel::data(const QModelIndex &index, int role) const
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
         return QVariant();
 
-    QList<TodoItem> filtered = filterByDate();
+    QList<TodoItem> filtered = filteredItems();
     const TodoItem &item = filtered.at(index.row());
 
     switch (role) {
@@ -93,100 +93,49 @@ void TodoModel::addItem(const QString &title, const QDate &dueDate)
     if (title.trimmed().isEmpty())
         return;
 
-    // 生成新任务
     TodoItem newItem{getNextId(), title, dueDate, QDate::currentDate(), false};
+    m_items.append(newItem);
 
-    // 如果新任务属于当前日期，需要插入到过滤后的视图中
-    if (dueDate == m_currentDate) {
-        // 获取当前过滤后的任务列表（用于确定插入位置）
-        QList<TodoItem> filtered = filterByDate();
-        int insertPosInFilter = filtered.size();  // 插入到末尾（也可按需排序）
-        // 通知视图：在过滤后列表的第 insertPosInFilter 行插入
-        beginInsertRows(QModelIndex(), insertPosInFilter, insertPosInFilter);
-        // 实际插入到内部数据列表（末尾）
-        m_items.append(newItem);
-        endInsertRows();
-    } else {
-        // 不属于当前日期，直接追加到内部数据列表，视图无变化
-        m_items.append(newItem);
-    }
+    // 重置模型，使视图根据当前过滤模式重新显示
+    beginResetModel();
+    endResetModel();
 
     saveToFile();
 }
-
 void TodoModel::removeItem(int id)
 {
-    // 1. 先在内部数据列表中查找要删除的任务的索引
-    int rowInItems = -1;
+    int index = -1;
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {
-            rowInItems = i;
+            index = i;
             break;
         }
     }
-    if (rowInItems == -1)
-        return;
+    if (index == -1) return;
 
-    // 2. 确定该任务是否属于当前显示日期，如果是，还需要知道它在过滤后列表中的索引
-    bool belongsToCurrent = (m_items[rowInItems].dueDate == m_currentDate);
-    int rowInFilter = -1;
-    if (belongsToCurrent) {
-        QList<TodoItem> filtered = filterByDate();
-        for (int j = 0; j < filtered.size(); ++j) {
-            if (filtered[j].id == id) {
-                rowInFilter = j;
-                break;
-            }
-        }
-        // 理论上一定找到，但以防万一
-        if (rowInFilter == -1)
-            return;
-    }
+    m_items.removeAt(index);
 
-    // 3. 根据是否属于当前日期，选择正确的视图删除方式
-    if (belongsToCurrent) {
-        // 从视图中删除该行
-        beginRemoveRows(QModelIndex(), rowInFilter, rowInFilter);
-        // 从内部数据列表中删除
-        m_items.removeAt(rowInItems);
-        endRemoveRows();
-    } else {
-        // 不属于当前日期，直接删除内部数据，视图无变化
-        m_items.removeAt(rowInItems);
-    }
+    beginResetModel();
+    endResetModel();
 
     saveToFile();
 }
-
 void TodoModel::setCompleted(int id, bool completed)
 {
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {
             if (m_items[i].completed != completed) {
                 m_items[i].completed = completed;
-                // 如果该任务属于当前显示日期，更新视图
-                if (m_items[i].dueDate == m_currentDate) {
-                    // 找到该任务在当前过滤列表中的位置
-                    QList<TodoItem> filtered = filterByDate();
-                    int rowInFilter = -1;
-                    for (int j = 0; j < filtered.size(); ++j) {
-                        if (filtered[j].id == id) {
-                            rowInFilter = j;
-                            break;
-                        }
-                    }
-                    if (rowInFilter != -1) {
-                        QModelIndex idx = index(rowInFilter);
-                        emit dataChanged(idx, idx, {CompletedRole});
-                    }
-                }
+
+                beginResetModel();
+                endResetModel();
+
                 saveToFile();
             }
             break;
         }
     }
 }
-
 void TodoModel::setCurrentDate(const QDate &date)
 {
     if (date == m_currentDate)
@@ -298,16 +247,16 @@ void TodoModel::loadFromFile()
 }
 void TodoModel::updateTask(int id, const QString &newTitle, const QDate &newDueDate)
 {
-    int itemIndex = -1;
+    int index = -1;
     for (int i = 0; i < m_items.size(); ++i) {
         if (m_items[i].id == id) {
-            itemIndex = i;
+            index = i;
             break;
         }
     }
-    if (itemIndex == -1) return;
+    if (index == -1) return;
 
-    TodoItem &item = m_items[itemIndex];
+    TodoItem &item = m_items[index];
     bool changed = false;
     if (item.title != newTitle) {
         item.title = newTitle;
@@ -319,17 +268,32 @@ void TodoModel::updateTask(int id, const QString &newTitle, const QDate &newDueD
     }
     if (!changed) return;
 
-    // 如果任务属于当前显示的日期，或修改后影响了当前视图，刷新模型
-    if (item.dueDate == m_currentDate || item.dueDate != m_currentDate) {
-        // 为了简单，只要有任何修改，就重置整个模型（确保视图正确更新）
-        beginResetModel();
-        endResetModel();
-    } else {
-        // 如果任务不在当前日期显示，但仍需更新内部数据，且视图不变，只需要发出 dataChanged
-        // 但这里已重置模型，所以统一用重置。
-        beginResetModel();
-        endResetModel();
-    }
+    beginResetModel();
+    endResetModel();
 
     saveToFile();
+}
+QList<TodoItem> TodoModel::filteredItems() const
+{
+    QList<TodoItem> result;
+    if (m_filterMode == AllTasks) {
+        result = m_items;
+    } else if (m_filterMode == TodayTasks) {
+        QDate today = QDate::currentDate();
+        for (const TodoItem &item : m_items) {
+            if (item.dueDate == today && !item.completed)
+                result.append(item);
+        }
+    }
+    return result;
+}
+
+void TodoModel::setFilterMode(FilterMode mode)
+{
+    if (m_filterMode == mode)
+        return;
+    m_filterMode = mode;
+    beginResetModel();
+    endResetModel();
+    emit filterModeChanged();
 }
