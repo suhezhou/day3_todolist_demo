@@ -56,6 +56,14 @@
 
 ## 当前功能
 
+![87a286619507df9903b5a8a01315e4d1](./README.assets/87a286619507df9903b5a8a01315e4d1.png)
+
+![225ddef77d6a9a6296d009d3295b2568](./README.assets/225ddef77d6a9a6296d009d3295b2568.png)
+
+![2327d6ff1cc4eaafd11020e576cb4014](./README.assets/2327d6ff1cc4eaafd11020e576cb4014.png)
+
+
+
 ### 任务管理
 
 - 新建任务
