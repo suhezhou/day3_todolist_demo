@@ -1,15 +1,26 @@
 # Todo List Demo
 
-一个基于 Qt Quick / QML 的待办事项示例项目。
+一个基于 Qt 6 与 QML 的待办事项示例项目。
 
-当前版本已经完成：
+当前版本已经完成了从 JSON 文件存储迁移到 SQLite 数据库，并围绕日期查看、主题切换和任务管理做了界面优化。
 
-- 使用 SQLite 进行任务持久化
-- 基于 `QAbstractListModel` 向 QML 提供数据
-- 支持按日期查看任务
-- 支持任务新增、删除、编辑、完成状态切换
-- 支持周视图和月历选择日期
-- 支持多套界面主题切换
+## 界面预览
+
+![主界面预览 1](./README.assets/87a286619507df9903b5a8a01315e4d1.png)
+
+![主界面预览 2](./README.assets/225ddef77d6a9a6296d009d3295b2568.png)
+
+![主界面预览 3](./README.assets/2327d6ff1cc4eaafd11020e576cb4014.png)
+
+## 功能概览
+
+- 使用 SQLite 持久化保存任务数据
+- 基于 `QAbstractListModel` 向 QML 提供列表数据
+- 支持按日期查看对应任务
+- 支持任务新建、删除、编辑、完成状态切换
+- 支持周视图切换日期
+- 支持月历弹窗选择日期
+- 支持多套界面主题切换与记忆
 
 ## 技术栈
 
@@ -25,27 +36,20 @@
 - `main.cpp`
   - 应用入口
   - 初始化数据库连接和数据表
-
 - `todomodel.h`
   - 模型接口定义
-
 - `todomodel.cpp`
   - 任务数据加载、数据库读写、过滤逻辑
-
 - `todoitem.h`
   - 任务结构体
-
 - `Main.qml`
   - 主界面
-
 - `PROJECT_NOTES.md`
-  - 当前项目实现说明和迭代记录
+  - 项目实现说明和迭代记录
 
 ## 数据存储
 
-任务数据使用 SQLite 存储。
-
-数据库文件位置：
+任务数据使用 SQLite 存储，数据库文件位于：
 
 `data/todo.db`
 
@@ -55,14 +59,6 @@
 - `app_meta`
 
 ## 当前功能
-
-![87a286619507df9903b5a8a01315e4d1](./README.assets/87a286619507df9903b5a8a01315e4d1.png)
-
-![225ddef77d6a9a6296d009d3295b2568](./README.assets/225ddef77d6a9a6296d009d3295b2568.png)
-
-![2327d6ff1cc4eaafd11020e576cb4014](./README.assets/2327d6ff1cc4eaafd11020e576cb4014.png)
-
-
 
 ### 任务管理
 
@@ -88,7 +84,7 @@
 
 ## 模型接口
 
-QML 当前主要通过 `todoModel` 调用以下方法：
+QML 主要通过 `todoModel` 调用以下方法：
 
 - `addItem(title, dueDate)`
 - `removeItem(id)`
@@ -103,7 +99,6 @@ QML 当前主要通过 `todoModel` 调用以下方法：
 
 - `AllTasks`
   - 显示所选日期的全部任务
-
 - `TodayTasks`
   - 显示所选日期的未完成任务
 
