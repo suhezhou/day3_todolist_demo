@@ -30,17 +30,10 @@ Window {
     property date calendarMonth: new Date(todoModel.currentDate.getFullYear(), todoModel.currentDate.getMonth(), 1)
 
     color: theme.window
-
     onThemeIndexChanged: appSettings.savedThemeIndex = themeIndex
 
-    function fmtDate(value) {
-        return Qt.formatDate(value, "yyyy-MM-dd")
-    }
-
-    function fmtHeaderDate(value) {
-        return Qt.formatDate(value, "yyyy年 M月d日")
-    }
-
+    function fmtDate(value) { return Qt.formatDate(value, "yyyy-MM-dd") }
+    function fmtHeaderDate(value) { return Qt.formatDate(value, "yyyy年 M月d日") }
     function parseDateInput(text) {
         let parts = text.trim().split("-")
         if (parts.length !== 3)
@@ -50,29 +43,22 @@ Window {
             return null
         return date
     }
-
     function sameDay(a, b) {
         return a.getFullYear() === b.getFullYear()
                 && a.getMonth() === b.getMonth()
                 && a.getDate() === b.getDate()
     }
-
     function addDays(baseDate, offset) {
         let date = new Date(baseDate)
         date.setDate(date.getDate() + offset)
         return date
     }
-
     function weekStart(date) {
         let start = new Date(date)
         start.setDate(start.getDate() - start.getDay())
         return start
     }
-
-    function changeWeek(offset) {
-        applyDate(addDays(todoModel.currentDate, offset * 7))
-    }
-
+    function changeWeek(offset) { applyDate(addDays(todoModel.currentDate, offset * 7)) }
     function applyDate(date) {
         todoModel.setCurrentDate(date)
         calendarMonth = new Date(date.getFullYear(), date.getMonth(), 1)
@@ -82,7 +68,7 @@ Window {
         id: addDialog
         modal: true
         anchors.centerIn: parent
-        width: 360
+        width: 380
         padding: 0
         standardButtons: Dialog.NoButton
 
@@ -93,37 +79,61 @@ Window {
         }
 
         contentItem: ColumnLayout {
-            spacing: 12
+            spacing: 14
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 70
+                implicitHeight: 82
                 radius: 22
                 color: theme.accentSoft
 
                 Column {
                     anchors.left: parent.left
-                    anchors.leftMargin: 18
+                    anchors.leftMargin: 20
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
-
                     Label { text: "新建任务"; font.pixelSize: 22; font.bold: true; color: theme.ink }
-                    Label { text: "按当前选中的日期创建"; font.pixelSize: 13; color: theme.muted }
+                    Label { text: "任务会添加到当前选中的日期"; font.pixelSize: 13; color: theme.muted }
                 }
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: 18
-                Layout.rightMargin: 18
-                Layout.bottomMargin: 18
-                spacing: 12
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.bottomMargin: 20
+                spacing: 14
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 42
+                    radius: 14
+                    color: theme.soft
+                    border.color: theme.line
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 8
+                        Label { text: "日期"; color: theme.muted; font.pixelSize: 13; font.bold: true }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            radius: 999
+                            color: theme.accentSoft
+                            implicitWidth: addDateTag.implicitWidth + 18
+                            implicitHeight: 28
+                            Label { id: addDateTag; anchors.centerIn: parent; text: fmtDate(todoModel.currentDate); color: theme.accent; font.pixelSize: 12; font.bold: true }
+                        }
+                    }
+                }
 
                 TextField {
                     id: addTitleField
                     Layout.fillWidth: true
                     placeholderText: "输入任务标题"
                     padding: 14
+                    font.pixelSize: 15
                     background: Rectangle {
                         radius: 14
                         color: theme.soft
@@ -136,9 +146,16 @@ Window {
                     Layout.alignment: Qt.AlignRight
                     spacing: 10
 
-                    Button { text: "取消"; onClicked: addDialog.close() }
+                    Button {
+                        text: "取消"
+                        implicitHeight: 36
+                        onClicked: addDialog.close()
+                        background: Rectangle { radius: 12; color: theme.soft; border.color: theme.line }
+                        contentItem: Label { text: parent.text; color: theme.ink; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
                     Button {
                         text: "创建"
+                        implicitHeight: 36
                         onClicked: {
                             let title = addTitleField.text.trim()
                             if (title) {
@@ -147,6 +164,8 @@ Window {
                                 addDialog.close()
                             }
                         }
+                        background: Rectangle { radius: 12; color: theme.accent; border.color: theme.accent }
+                        contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     }
                 }
             }
@@ -160,7 +179,6 @@ Window {
         width: 380
         padding: 0
         standardButtons: Dialog.NoButton
-
         property int taskId: -1
         property string oldTitle: ""
         property date oldDueDate: new Date()
@@ -172,20 +190,19 @@ Window {
         }
 
         contentItem: ColumnLayout {
-            spacing: 12
+            spacing: 14
 
             Rectangle {
                 Layout.fillWidth: true
-                implicitHeight: 70
+                implicitHeight: 82
                 radius: 22
-                color: theme.warmSoft
+                color: theme.accentSoft
 
                 Column {
                     anchors.left: parent.left
-                    anchors.leftMargin: 18
+                    anchors.leftMargin: 20
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
-
                     Label { text: "编辑任务"; font.pixelSize: 22; font.bold: true; color: theme.ink }
                     Label { text: "修改标题和截止日期"; font.pixelSize: 13; color: theme.muted }
                 }
@@ -193,16 +210,42 @@ Window {
 
             ColumnLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: 18
-                Layout.rightMargin: 18
-                Layout.bottomMargin: 18
-                spacing: 12
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                Layout.bottomMargin: 20
+                spacing: 14
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    implicitHeight: 42
+                    radius: 14
+                    color: theme.soft
+                    border.color: theme.line
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 14
+                        anchors.rightMargin: 14
+                        spacing: 8
+                        Label { text: "日期"; color: theme.muted; font.pixelSize: 13; font.bold: true }
+                        Item { Layout.fillWidth: true }
+                        Rectangle {
+                            radius: 999
+                            color: theme.accentSoft
+                            implicitWidth: editDateTag.implicitWidth + 18
+                            implicitHeight: 28
+                            Label { id: editDateTag; anchors.centerIn: parent; text: fmtDate(editDialog.oldDueDate); color: theme.accent; font.pixelSize: 12; font.bold: true }
+                        }
+                    }
+                }
 
                 TextField {
                     id: editTitleField
                     Layout.fillWidth: true
                     text: editDialog.oldTitle
+                    placeholderText: "任务标题"
                     padding: 14
+                    font.pixelSize: 15
                     background: Rectangle {
                         radius: 14
                         color: theme.soft
@@ -215,7 +258,9 @@ Window {
                     id: editDateField
                     Layout.fillWidth: true
                     text: fmtDate(editDialog.oldDueDate)
+                    placeholderText: "yyyy-MM-dd"
                     padding: 14
+                    font.pixelSize: 15
                     background: Rectangle {
                         radius: 14
                         color: theme.soft
@@ -228,17 +273,27 @@ Window {
                     Layout.alignment: Qt.AlignRight
                     spacing: 10
 
-                    Button { text: "取消"; onClicked: editDialog.close() }
+                    Button {
+                        text: "取消"
+                        implicitHeight: 36
+                        onClicked: editDialog.close()
+                        background: Rectangle { radius: 12; color: theme.soft; border.color: theme.line }
+                        contentItem: Label { text: parent.text; color: theme.ink; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
                     Button {
                         text: "保存"
+                        implicitHeight: 36
                         onClicked: {
                             let title = editTitleField.text.trim()
                             let dueDate = parseDateInput(editDateField.text)
                             if (title && dueDate) {
                                 todoModel.updateTask(editDialog.taskId, title, dueDate)
+                                editDialog.oldDueDate = dueDate
                                 editDialog.close()
                             }
                         }
+                        background: Rectangle { radius: 12; color: theme.accent; border.color: theme.accent }
+                        contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     }
                 }
             }
@@ -254,11 +309,7 @@ Window {
         modal: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
-        background: Rectangle {
-            radius: 24
-            color: theme.card
-            border.color: theme.line
-        }
+        background: Rectangle { radius: 24; color: theme.card; border.color: theme.line }
 
         contentItem: ColumnLayout {
             anchors.fill: parent
@@ -267,28 +318,15 @@ Window {
 
             RowLayout {
                 Layout.fillWidth: true
-
                 Button { text: "<"; onClicked: calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1) }
-                Label {
-                    Layout.fillWidth: true
-                    text: Qt.formatDate(calendarMonth, "yyyy年 M月")
-                    color: theme.ink
-                    font.pixelSize: 18
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                Label { Layout.fillWidth: true; text: Qt.formatDate(calendarMonth, "yyyy年 M月"); color: theme.ink; font.pixelSize: 18; font.bold: true; horizontalAlignment: Text.AlignHCenter }
                 Button { text: ">"; onClicked: calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1) }
             }
 
             DayOfWeekRow {
                 Layout.fillWidth: true
                 locale: Qt.locale("zh_CN")
-                delegate: Label {
-                    text: model.shortName
-                    color: theme.muted
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                delegate: Label { text: model.shortName; color: theme.muted; font.bold: true; horizontalAlignment: Text.AlignHCenter }
             }
 
             MonthGrid {
@@ -301,42 +339,20 @@ Window {
                 delegate: Rectangle {
                     required property var model
                     radius: 14
-                    color: model.month !== monthGrid.month ? "transparent"
-                           : sameDay(model.date, todoModel.currentDate) ? theme.accent
-                           : model.today ? theme.warmSoft
-                           : "transparent"
+                    color: model.month !== monthGrid.month ? "transparent" : sameDay(model.date, todoModel.currentDate) ? theme.accent : model.today ? theme.warmSoft : "transparent"
                     border.color: sameDay(model.date, todoModel.currentDate) ? theme.accent : "transparent"
 
                     Column {
                         anchors.centerIn: parent
                         spacing: 3
-
-                        Label {
-                            text: model.day
-                            color: model.month !== monthGrid.month ? "#b6bfba"
-                                   : sameDay(model.date, todoModel.currentDate) ? "white"
-                                   : theme.ink
-                            horizontalAlignment: Text.AlignHCenter
-                            width: parent.width
-                        }
-
-                        Rectangle {
-                            width: 6
-                            height: 6
-                            radius: 3
-                            color: sameDay(model.date, todoModel.currentDate) ? "white" : theme.accent
-                            visible: model.month === monthGrid.month && todoModel.hasTasksForDate(model.date)
-                            anchors.horizontalCenter: parent.horizontalCenter
-                        }
+                        Label { text: model.day; color: model.month !== monthGrid.month ? "#b6bfba" : sameDay(model.date, todoModel.currentDate) ? "white" : theme.ink; horizontalAlignment: Text.AlignHCenter; width: parent.width }
+                        Rectangle { width: 6; height: 6; radius: 3; color: sameDay(model.date, todoModel.currentDate) ? "white" : theme.accent; visible: model.month === monthGrid.month && todoModel.hasTasksForDate(model.date); anchors.horizontalCenter: parent.horizontalCenter }
                     }
 
                     MouseArea {
                         anchors.fill: parent
                         enabled: model.month === monthGrid.month
-                        onClicked: {
-                            applyDate(model.date)
-                            calendarPopup.close()
-                        }
+                        onClicked: { applyDate(model.date); calendarPopup.close() }
                     }
                 }
             }
@@ -389,7 +405,6 @@ Window {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
-
                         Label { text: "日期安排"; color: "#d7ece0"; font.pixelSize: 12; font.bold: true }
                         Label { text: fmtHeaderDate(todoModel.currentDate); color: "white"; font.pixelSize: 28; font.bold: true }
                         Label { text: "点击下方日期可切换，圆点表示该天有任务"; color: "#b8d8c1"; font.pixelSize: 13 }
@@ -402,29 +417,14 @@ Window {
                         onActivated: themeIndex = currentIndex
                         implicitWidth: 110
                         implicitHeight: 40
-
-                        background: Rectangle {
-                            radius: 14
-                            color: theme.headerSoft
-                            border.color: "#3f6a58"
-                        }
-
-                        contentItem: Label {
-                            leftPadding: 14
-                            rightPadding: 26
-                            text: skinBox.displayText
-                            color: "white"
-                            font.bold: true
-                            font.pixelSize: 14
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                        background: Rectangle { radius: 14; color: theme.headerSoft; border.color: "#3f6a58" }
+                        contentItem: Label { leftPadding: 14; rightPadding: 26; text: skinBox.displayText; color: "white"; font.bold: true; font.pixelSize: 14; verticalAlignment: Text.AlignVCenter }
                         indicator: Canvas {
                             x: skinBox.width - width - 12
                             y: skinBox.topPadding + (skinBox.availableHeight - height) / 2
                             width: 12
                             height: 8
                             contextType: "2d"
-
                             onPaint: {
                                 context.reset()
                                 context.moveTo(0, 0)
@@ -435,69 +435,40 @@ Window {
                                 context.fill()
                             }
                         }
-
                         popup: Popup {
                             y: skinBox.height + 6
                             width: 124
                             padding: 6
-                            background: Rectangle {
-                                radius: 16
-                                color: theme.card
-                                border.color: theme.line
-                                border.width: 1
-                            }
-                            contentItem: ListView {
-                                clip: true
-                                implicitHeight: contentHeight
-                                model: skinBox.popup.visible ? skinBox.delegateModel : null
-                            }
+                            background: Rectangle { radius: 16; color: theme.card; border.color: theme.line; border.width: 1 }
+                            contentItem: ListView { clip: true; implicitHeight: contentHeight; model: skinBox.popup.visible ? skinBox.delegateModel : null }
                         }
-
                         delegate: ItemDelegate {
                             width: 112
                             height: 38
                             text: modelData
                             highlighted: skinBox.highlightedIndex === index
-                            background: Rectangle {
-                                radius: 12
-                                color: highlighted || skinBox.currentIndex === index ? theme.accentSoft : "transparent"
-                            }
-                            contentItem: Label {
-                                text: parent.text
-                                color: theme.ink
-                                font.bold: index === skinBox.currentIndex
-                                font.pixelSize: 13
-                                verticalAlignment: Text.AlignVCenter
-                                leftPadding: 12
-                            }
+                            background: Rectangle { radius: 12; color: highlighted || skinBox.currentIndex === index ? theme.accentSoft : "transparent" }
+                            contentItem: Label { text: parent.text; color: theme.ink; font.bold: index === skinBox.currentIndex; font.pixelSize: 13; verticalAlignment: Text.AlignVCenter; leftPadding: 12 }
                         }
                     }
                 }
 
-                Item {
-                    id: weekStrip
+                RowLayout {
                     Layout.fillWidth: true
-                    implicitHeight: 72
-                    x: 0
-                    opacity: 1
+                    spacing: 8
 
-                    RowLayout {
-                        anchors.fill: parent
-                        spacing: 8
+                    Button {
+                        text: "<"
+                        onClicked: changeWeek(-1)
+                        background: Rectangle { radius: 14; color: theme.headerSoft }
+                        contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
 
-                        Button {
-                            text: "<"
-                            onClicked: changeWeek(-1)
-                            background: Rectangle { radius: 14; color: theme.headerSoft }
-                            contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        }
-
-                        Repeater {
-                            model: 7
-
-                            delegate: Rectangle {
-                                required property int index
-                                readonly property var cellDate: addDays(weekStart(todoModel.currentDate), index)
+                    Repeater {
+                        model: 7
+                        delegate: Rectangle {
+                            required property int index
+                            readonly property var cellDate: addDays(weekStart(todoModel.currentDate), index)
                             Layout.fillWidth: true
                             implicitHeight: 72
                             radius: 16
@@ -508,55 +479,27 @@ Window {
                             Column {
                                 anchors.centerIn: parent
                                 spacing: 4
-
-                                    Label {
-                                        text: weekNames[index]
-                                        color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : "#c9e1d1"
-                                        font.pixelSize: 10
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        width: 40
-                                    }
-
-                                    Label {
-                                        text: Qt.formatDate(cellDate, "d")
-                                        color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : "white"
-                                        font.pixelSize: 18
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        width: 40
-                                    }
-
-                                    Rectangle {
-                                        width: 6
-                                        height: 6
-                                        radius: 3
-                                        color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : theme.warm
-                                        visible: todoModel.hasTasksForDate(cellDate)
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: applyDate(parent.cellDate)
-                                }
+                                Label { text: weekNames[index]; color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : "#c9e1d1"; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; width: 40 }
+                                Label { text: Qt.formatDate(cellDate, "d"); color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : "white"; font.pixelSize: 18; font.bold: true; horizontalAlignment: Text.AlignHCenter; width: 40 }
+                                Rectangle { width: 6; height: 6; radius: 3; color: sameDay(cellDate, todoModel.currentDate) ? "#5a4300" : theme.warm; visible: todoModel.hasTasksForDate(cellDate); anchors.horizontalCenter: parent.horizontalCenter }
                             }
-                        }
 
-                        Button {
-                            text: ">"
-                            onClicked: changeWeek(1)
-                            background: Rectangle { radius: 14; color: theme.headerSoft }
-                            contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                            MouseArea { anchors.fill: parent; onClicked: applyDate(parent.cellDate) }
                         }
+                    }
 
-                        Button {
-                            text: "定位今天"
-                            onClicked: applyDate(new Date())
-                            background: Rectangle { radius: 14; color: "white" }
-                            contentItem: Label { text: parent.text; color: theme.accent; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                        }
+                    Button {
+                        text: ">"
+                        onClicked: changeWeek(1)
+                        background: Rectangle { radius: 14; color: theme.headerSoft }
+                        contentItem: Label { text: parent.text; color: "white"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
+
+                    Button {
+                        text: "定位今天"
+                        onClicked: applyDate(new Date())
+                        background: Rectangle { radius: 14; color: "white" }
+                        contentItem: Label { text: parent.text; color: theme.accent; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     }
                 }
             }
@@ -572,13 +515,11 @@ Window {
                 anchors.fill: parent
                 anchors.margins: 18
                 spacing: 14
-
                 Label { text: "日期与筛选"; color: theme.ink; font.pixelSize: 18; font.bold: true }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 12
-
                     TextField {
                         id: dateField
                         Layout.fillWidth: true
@@ -586,52 +527,23 @@ Window {
                         padding: 14
                         onEditingFinished: {
                             let d = parseDateInput(text)
-                            if (d)
-                                applyDate(d)
-                            else
-                                text = fmtDate(todoModel.currentDate)
+                            if (d) applyDate(d); else text = fmtDate(todoModel.currentDate)
                         }
-                        background: Rectangle {
-                            radius: 14
-                            color: theme.soft
-                            border.color: dateField.activeFocus ? theme.accent : theme.line
-                            border.width: dateField.activeFocus ? 2 : 1
-                        }
+                        background: Rectangle { radius: 14; color: theme.soft; border.color: dateField.activeFocus ? theme.accent : theme.line; border.width: dateField.activeFocus ? 2 : 1 }
                     }
-
                     Button {
                         text: "今天"
                         onClicked: applyDate(new Date())
                         background: Rectangle { radius: 14; color: theme.accentSoft }
-                        contentItem: Label {
-                            text: parent.text
-                            color: theme.accent
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                        contentItem: Label { text: parent.text; color: theme.accent; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "当日全部"
-                        checkable: true
-                        checked: todoModel.filterMode === TodoModel.AllTasks
-                        onClicked: todoModel.filterMode = TodoModel.AllTasks
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "当日待办"
-                        checkable: true
-                        checked: todoModel.filterMode === TodoModel.TodayTasks
-                        onClicked: todoModel.filterMode = TodoModel.TodayTasks
-                    }
+                    Button { Layout.fillWidth: true; text: "当日全部"; checkable: true; checked: todoModel.filterMode === TodoModel.AllTasks; onClicked: todoModel.filterMode = TodoModel.AllTasks }
+                    Button { Layout.fillWidth: true; text: "当日待办"; checkable: true; checked: todoModel.filterMode === TodoModel.TodayTasks; onClicked: todoModel.filterMode = TodoModel.TodayTasks }
                 }
             }
         }
@@ -650,25 +562,13 @@ Window {
 
                 RowLayout {
                     Layout.fillWidth: true
-
                     Label { text: "任务列表"; color: theme.ink; font.pixelSize: 20; font.bold: true }
                     Item { Layout.fillWidth: true }
-
                     Button {
                         text: "+ 新建"
                         onClicked: addDialog.open()
-                        background: Rectangle {
-                            radius: 14
-                            color: theme.warm
-                            border.color: theme.warm
-                        }
-                        contentItem: Label {
-                            text: parent.text
-                            color: "#5a4300"
-                            font.bold: true
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                        background: Rectangle { radius: 14; color: theme.warm; border.color: theme.warm }
+                        contentItem: Label { text: parent.text; color: "#5a4300"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                     }
                 }
 
@@ -692,77 +592,25 @@ Window {
                             anchors.margins: 16
                             spacing: 12
 
-                            CheckBox {
-                                checked: model.completed
-                                onClicked: todoModel.setCompleted(model.id, checked)
-                            }
+                            CheckBox { checked: model.completed; onClicked: todoModel.setCompleted(model.id, checked) }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-
-                                Label {
-                                    text: model.title
-                                    color: theme.ink
-                                    font.pixelSize: 17
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                }
-
+                                Label { text: model.title; color: theme.ink; font.pixelSize: 17; font.bold: true; elide: Text.ElideRight }
                                 Row {
                                     spacing: 8
-
-                                    Rectangle {
-                                        radius: 999
-                                        color: theme.accentSoft
-                                        width: dueText.implicitWidth + 18
-                                        height: 28
-
-                                        Label {
-                                            id: dueText
-                                            anchors.centerIn: parent
-                                            text: "截止 " + fmtDate(model.dueDate)
-                                            color: theme.accent
-                                            font.pixelSize: 12
-                                            font.bold: true
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        radius: 999
-                                        color: model.completed ? theme.accentSoft : theme.warmSoft
-                                        width: stateText.implicitWidth + 18
-                                        height: 28
-
-                                        Label {
-                                            id: stateText
-                                            anchors.centerIn: parent
-                                            text: model.completed ? "已完成" : "进行中"
-                                            color: model.completed ? theme.accent : "#8b6700"
-                                            font.pixelSize: 12
-                                            font.bold: true
-                                        }
-                                    }
+                                    Rectangle { radius: 999; color: theme.accentSoft; width: dueText.implicitWidth + 18; height: 28
+                                        Label { id: dueText; anchors.centerIn: parent; text: "截止 " + fmtDate(model.dueDate); color: theme.accent; font.pixelSize: 12; font.bold: true } }
+                                    Rectangle { radius: 999; color: model.completed ? theme.accentSoft : theme.warmSoft; width: stateText.implicitWidth + 18; height: 28
+                                        Label { id: stateText; anchors.centerIn: parent; text: model.completed ? "已完成" : "进行中"; color: model.completed ? theme.accent : "#8b6700"; font.pixelSize: 12; font.bold: true } }
                                 }
                             }
 
                             ColumnLayout {
                                 spacing: 8
-
                                 Button {
                                     text: "编辑"
-                                    background: Rectangle {
-                                        radius: 12
-                                        color: theme.accentSoft
-                                        border.color: theme.accentSoft
-                                    }
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: theme.accent
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                     onClicked: {
                                         editDialog.taskId = model.id
                                         editDialog.oldTitle = model.title
@@ -771,23 +619,14 @@ Window {
                                         editDateField.text = fmtDate(model.dueDate)
                                         editDialog.open()
                                     }
+                                    background: Rectangle { radius: 12; color: theme.accentSoft; border.color: theme.accentSoft }
+                                    contentItem: Label { text: parent.text; color: theme.accent; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                                 }
-
                                 Button {
                                     text: "删除"
-                                    background: Rectangle {
-                                        radius: 12
-                                        color: "#fff1f1"
-                                        border.color: "#f2d3d3"
-                                    }
-                                    contentItem: Label {
-                                        text: parent.text
-                                        color: "#c44c4c"
-                                        font.bold: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
                                     onClicked: todoModel.removeItem(model.id)
+                                    background: Rectangle { radius: 12; color: "#fff1f1"; border.color: "#f2d3d3" }
+                                    contentItem: Label { text: parent.text; color: "#c44c4c"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                                 }
                             }
                         }
@@ -805,23 +644,8 @@ Window {
                         Column {
                             anchors.centerIn: parent
                             spacing: 10
-
-                            Label {
-                                text: "还没有任务"
-                                font.pixelSize: 20
-                                font.bold: true
-                                color: theme.ink
-                                horizontalAlignment: Text.AlignHCenter
-                                width: parent.width
-                            }
-
-                            Label {
-                                text: "切换日期或新建任务开始安排。"
-                                color: theme.muted
-                                width: 220
-                                wrapMode: Text.WordWrap
-                                horizontalAlignment: Text.AlignHCenter
-                            }
+                            Label { text: "还没有任务"; font.pixelSize: 20; font.bold: true; color: theme.ink; horizontalAlignment: Text.AlignHCenter; width: parent.width }
+                            Label { text: "切换日期或新建任务开始安排。"; color: theme.muted; width: 220; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
                         }
                     }
                 }
