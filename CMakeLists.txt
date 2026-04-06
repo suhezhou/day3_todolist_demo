@@ -4,9 +4,7 @@ project(todo_list_demo VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
-find_package(Qt6 REQUIRED COMPONENTS Core Quick)
-find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2 Sql)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -34,7 +32,13 @@ set_target_properties(apptodo_list_demo PROPERTIES
 )
 
 target_link_libraries(apptodo_list_demo
-    PRIVATE Qt6::Quick
+    PRIVATE
+        Qt6::Quick
+        Qt6::Sql
+)
+
+target_compile_definitions(apptodo_list_demo
+    PRIVATE TODO_PROJECT_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 include(GNUInstallDirs)

@@ -1,254 +1,269 @@
 #include "todomodel.h"
-#include <QStandardPaths>
+
+#include <QCoreApplication>
+#include <QDebug>
 #include <QDir>
 #include <QFile>
-#include <QJsonDocument>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
-#include <QDebug>
-#include <QCoreApplication>
+#include <QSqlError>
+#include <QSqlQuery>
+#include <QSqlRecord>
+
+#ifndef TODO_PROJECT_DIR
+#define TODO_PROJECT_DIR "."
+#endif
 
 TodoModel::TodoModel(QObject *parent)
-    : QAbstractListModel(parent), m_currentDate(QDate::currentDate())
+    : QAbstractListModel(parent),
+      m_database(QSqlDatabase::database()),
+      m_currentDate(QDate::currentDate())
 {
-    // 确定保存文件路径
-    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir dir(dataDir);
-    if (!dir.exists())
-        dir.mkpath(".");
-    m_filePath = dataDir + "/tasks.json";
+    if (!m_database.isValid() || !m_database.isOpen()) {
+        qWarning() << "Database connection is not available for TodoModel.";
+        return;
+    }
 
-    // 加载已有数据
-    loadFromFile();
-    // 迁移过期任务
-    QDate today = QDate::currentDate();
-    //QDate today = QDate::currentDate().addDays(1);  // 模拟明天(只用于测试）
+    loadFromDatabase();
+    importLegacyJsonIfNeeded();
+
+    m_lastDate = loadLastDate();
+    if (!m_lastDate.isValid()) {
+        m_lastDate = QDate::currentDate();
+        saveLastDate(m_lastDate);
+    }
+
+    const QDate today = QDate::currentDate();
     if (today > m_lastDate) {
         migrateTasks(today);
         m_lastDate = today;
-        saveToFile();   // 保存迁移后的状态
-    }
-    // 自动保存定时器：每 30 秒触发一次
-    m_saveTimer.setInterval(30000);
-    connect(&m_saveTimer, &QTimer::timeout, this, &TodoModel::saveToFile);
-    m_saveTimer.start();
-
-    // 应用退出时保存一次
-    connect(qApp, &QCoreApplication::aboutToQuit, this, &TodoModel::saveToFile);
-}
-TodoModel::~TodoModel()
-{
-    m_saveTimer.stop();      // 停止定时器
-    saveToFile();            // 最后保存一次
-}
-void TodoModel::migrateTasks(const QDate &targetDate)
-{
-    int nextId = getNextId();
-    QList<TodoItem> newItems;
-
-    for (const TodoItem &item : m_items) {
-        if (!item.completed && item.dueDate <= m_lastDate) {
-            TodoItem newItem;
-            newItem.id = nextId++;
-            newItem.title = item.title;
-            newItem.dueDate = targetDate;
-            newItem.createdDate = QDate::currentDate();
-            newItem.completed = false;
-            newItems.append(newItem);
-        }
-    }
-
-    if (!newItems.isEmpty()) {
-        m_items.append(newItems);
-        // 迁移后刷新模型
-        beginResetModel();
-        endResetModel();
-        saveToFile();
+        saveLastDate(m_lastDate);
     }
 }
+
 int TodoModel::rowCount(const QModelIndex &parent) const
 {
-    Q_UNUSED(parent);
+    if (parent.isValid())
+        return 0;
+
     return filteredItems().size();
 }
 
 QVariant TodoModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() < 0 || index.row() >= rowCount())
-        return QVariant();
+        return {};
 
-    QList<TodoItem> filtered = filteredItems();
-    const TodoItem &item = filtered.at(index.row());
+    const QList<TodoItem> visibleItems = filteredItems();
+    const TodoItem &item = visibleItems.at(index.row());
 
     switch (role) {
-    case IdRole: return item.id;
-    case TitleRole: return item.title;
-    case DueDateRole: return item.dueDate;
-    case CreatedDateRole: return item.createdDate;
-    case CompletedRole: return item.completed;
-    default: return QVariant();
+    case IdRole:
+        return item.id;
+    case TitleRole:
+        return item.title;
+    case DueDateRole:
+        return item.dueDate;
+    case CreatedDateRole:
+        return item.createdDate;
+    case CompletedRole:
+        return item.completed;
+    default:
+        return {};
     }
 }
 
 QHash<int, QByteArray> TodoModel::roleNames() const
 {
-    QHash<int, QByteArray> roles;
-    roles[IdRole] = "id";
-    roles[TitleRole] = "title";
-    roles[DueDateRole] = "dueDate";
-    roles[CreatedDateRole] = "createdDate";
-    roles[CompletedRole] = "completed";
-    return roles;
+    return {
+        {IdRole, "id"},
+        {TitleRole, "title"},
+        {DueDateRole, "dueDate"},
+        {CreatedDateRole, "createdDate"},
+        {CompletedRole, "completed"},
+    };
 }
 
 void TodoModel::addItem(const QString &title, const QDate &dueDate)
 {
-    if (title.trimmed().isEmpty())
+    const QString trimmedTitle = title.trimmed();
+    if (trimmedTitle.isEmpty())
         return;
 
-    TodoItem newItem{getNextId(), title, dueDate, QDate::currentDate(), false};
+    TodoItem newItem{0, trimmedTitle, dueDate, QDate::currentDate(), false};
+    int insertedId = 0;
+    if (!insertTask(newItem, &insertedId))
+        return;
+
+    newItem.id = insertedId;
+    const int sourceRow = m_items.size();
+    const bool visible = matchesCurrentFilter(newItem);
+    const int visibleRow = visible ? visibleRowForSourceRow(sourceRow) : -1;
+
+    if (visible)
+        beginInsertRows({}, visibleRow, visibleRow);
+
     m_items.append(newItem);
 
-    // 重置模型，使视图根据当前过滤模式重新显示
-    beginResetModel();
-    endResetModel();
-
-    saveToFile();
+    if (visible)
+        endInsertRows();
 }
+
 void TodoModel::removeItem(int id)
 {
-    int index = -1;
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            index = i;
-            break;
-        }
-    }
-    if (index == -1) return;
+    const int sourceRow = indexOfItemById(id);
+    if (sourceRow < 0)
+        return;
 
-    m_items.removeAt(index);
+    const bool visible = matchesCurrentFilter(m_items.at(sourceRow));
+    const int visibleRow = visible ? visibleRowForSourceRow(sourceRow) : -1;
 
-    beginResetModel();
-    endResetModel();
+    if (!deleteTaskRecord(id))
+        return;
 
-    saveToFile();
+    if (visible)
+        beginRemoveRows({}, visibleRow, visibleRow);
+
+    m_items.removeAt(sourceRow);
+
+    if (visible)
+        endRemoveRows();
 }
+
 void TodoModel::setCompleted(int id, bool completed)
 {
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            if (m_items[i].completed != completed) {
-                m_items[i].completed = completed;
+    const int sourceRow = indexOfItemById(id);
+    if (sourceRow < 0)
+        return;
 
-                beginResetModel();
-                endResetModel();
+    TodoItem updatedItem = m_items.at(sourceRow);
+    if (updatedItem.completed == completed)
+        return;
 
-                saveToFile();
-            }
-            break;
-        }
+    const bool wasVisible = matchesCurrentFilter(updatedItem);
+    const int previousVisibleRow = wasVisible ? visibleRowForSourceRow(sourceRow) : -1;
+
+    updatedItem.completed = completed;
+    const bool isVisible = matchesCurrentFilter(updatedItem);
+    if (!updateTaskRecord(updatedItem))
+        return;
+
+    if (wasVisible && isVisible) {
+        m_items[sourceRow] = updatedItem;
+        const QModelIndex changedIndex = index(previousVisibleRow, 0);
+        emit dataChanged(changedIndex, changedIndex, {CompletedRole});
+    } else if (wasVisible && !isVisible) {
+        beginRemoveRows({}, previousVisibleRow, previousVisibleRow);
+        m_items[sourceRow] = updatedItem;
+        endRemoveRows();
+    } else if (!wasVisible && isVisible) {
+        const int newVisibleRow = visibleRowForSourceRow(sourceRow);
+        beginInsertRows({}, newVisibleRow, newVisibleRow);
+        m_items[sourceRow] = updatedItem;
+        endInsertRows();
+    } else {
+        m_items[sourceRow] = updatedItem;
     }
 }
+
 void TodoModel::setCurrentDate(const QDate &date)
 {
     if (date == m_currentDate)
         return;
+
     m_currentDate = date;
-    // 由于当前日期变化，模型的行数会改变，需要重置模型
     beginResetModel();
     endResetModel();
     emit currentDateChanged();
 }
 
-QList<TodoItem> TodoModel::filterByDate() const
+void TodoModel::updateTask(int id, const QString &newTitle, const QDate &newDueDate)
 {
-    QList<TodoItem> result;
-    for (const TodoItem &item : m_items) {
-        if (item.dueDate == m_currentDate)
-            result.append(item);
-    }
-    return result;
-}
-
-int TodoModel::getNextId() const
-{
-    int maxId = 0;
-    for (const TodoItem &item : m_items) {
-        if (item.id > maxId)
-            maxId = item.id;
-    }
-    return maxId + 1;
-}
-
-void TodoModel::saveToFile() const
-{
-    QJsonObject rootObj;
-    rootObj["lastDate"] = m_lastDate.toString(Qt::ISODate);
-
-    QJsonArray tasksArray;
-    for (const TodoItem &item : m_items) {
-        QJsonObject obj;
-        obj["id"] = item.id;
-        obj["title"] = item.title;
-        obj["dueDate"] = item.dueDate.toString(Qt::ISODate);
-        obj["createdDate"] = item.createdDate.toString(Qt::ISODate);
-        obj["completed"] = item.completed;
-        tasksArray.append(obj);
-    }
-    rootObj["tasks"] = tasksArray;
-
-    QJsonDocument doc(rootObj);
-    QFile file(m_filePath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning() << "无法保存文件:" << m_filePath;
-        return;
-    }
-    file.write(doc.toJson());
-    file.close();
-}
-
-void TodoModel::loadFromFile()
-{
-    QFile file(m_filePath);
-    if (!file.exists())
+    const int sourceRow = indexOfItemById(id);
+    if (sourceRow < 0)
         return;
 
-    if (!file.open(QIODevice::ReadOnly)) {
-        qWarning() << "无法打开文件加载:" << m_filePath;
+    TodoItem updatedItem = m_items.at(sourceRow);
+    const QString trimmedTitle = newTitle.trimmed();
+    if (trimmedTitle.isEmpty())
         return;
+
+    bool changed = false;
+    if (updatedItem.title != trimmedTitle) {
+        updatedItem.title = trimmedTitle;
+        changed = true;
+    }
+    if (updatedItem.dueDate != newDueDate) {
+        updatedItem.dueDate = newDueDate;
+        changed = true;
     }
 
-    QByteArray data = file.readAll();
-    file.close();
+    if (!changed)
+        return;
 
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    QJsonObject rootObj;
-    QJsonArray tasksArray;
+    const bool wasVisible = matchesCurrentFilter(m_items.at(sourceRow));
+    const int previousVisibleRow = wasVisible ? visibleRowForSourceRow(sourceRow) : -1;
 
-    // 兼容旧格式（纯数组）
-    if (doc.isArray()) {
-        tasksArray = doc.array();
-        m_lastDate = QDate::currentDate();  // 旧格式没有 lastDate，默认当前日期
-    } else if (doc.isObject()) {
-        rootObj = doc.object();
-        tasksArray = rootObj["tasks"].toArray();
-        m_lastDate = QDate::fromString(rootObj["lastDate"].toString(), Qt::ISODate);
-        if (!m_lastDate.isValid())
-            m_lastDate = QDate::currentDate();
+    const bool isVisible = matchesCurrentFilter(updatedItem);
+    if (!updateTaskRecord(updatedItem))
+        return;
+
+    if (wasVisible && isVisible) {
+        m_items[sourceRow] = updatedItem;
+        const QModelIndex changedIndex = index(previousVisibleRow, 0);
+        emit dataChanged(changedIndex, changedIndex, {TitleRole, DueDateRole});
+    } else if (wasVisible && !isVisible) {
+        beginRemoveRows({}, previousVisibleRow, previousVisibleRow);
+        m_items[sourceRow] = updatedItem;
+        endRemoveRows();
+    } else if (!wasVisible && isVisible) {
+        const int newVisibleRow = visibleRowForSourceRow(sourceRow);
+        beginInsertRows({}, newVisibleRow, newVisibleRow);
+        m_items[sourceRow] = updatedItem;
+        endInsertRows();
     } else {
-        return;
+        m_items[sourceRow] = updatedItem;
+    }
+}
+
+bool TodoModel::hasTasksForDate(const QDate &date) const
+{
+    for (const TodoItem &item : m_items) {
+        if (item.dueDate == date)
+            return true;
     }
 
-    // 解析任务
+    return false;
+}
+
+void TodoModel::setFilterMode(FilterMode mode)
+{
+    if (m_filterMode == mode)
+        return;
+
+    m_filterMode = mode;
+    beginResetModel();
+    endResetModel();
+    emit filterModeChanged();
+}
+
+bool TodoModel::loadFromDatabase()
+{
+    QSqlQuery query(m_database);
+    if (!query.exec("SELECT id, title, completed, dueDate, createdDate FROM tasks ORDER BY id ASC")) {
+        qWarning() << "Failed to load tasks:" << query.lastError().text();
+        return false;
+    }
+
     QList<TodoItem> loadedItems;
-    for (const QJsonValue &val : tasksArray) {
-        QJsonObject obj = val.toObject();
+    while (query.next()) {
         TodoItem item;
-        item.id = obj["id"].toInt();
-        item.title = obj["title"].toString();
-        item.dueDate = QDate::fromString(obj["dueDate"].toString(), Qt::ISODate);
-        item.createdDate = QDate::fromString(obj["createdDate"].toString(), Qt::ISODate);
-        item.completed = obj["completed"].toBool();
+        item.id = query.value("id").toInt();
+        item.title = query.value("title").toString();
+        item.completed = query.value("completed").toInt() != 0;
+        item.dueDate = QDate::fromString(query.value("dueDate").toString(), Qt::ISODate);
+        item.createdDate = QDate::fromString(query.value("createdDate").toString(), Qt::ISODate);
         loadedItems.append(item);
     }
 
@@ -256,57 +271,207 @@ void TodoModel::loadFromFile()
         beginResetModel();
         m_items = loadedItems;
         endResetModel();
+    } else {
+        m_items.clear();
     }
+
+    return true;
 }
-void TodoModel::updateTask(int id, const QString &newTitle, const QDate &newDueDate)
+
+bool TodoModel::importLegacyJsonIfNeeded()
 {
-    int index = -1;
-    for (int i = 0; i < m_items.size(); ++i) {
-        if (m_items[i].id == id) {
-            index = i;
-            break;
-        }
-    }
-    if (index == -1) return;
+    if (!m_items.isEmpty())
+        return false;
 
-    TodoItem &item = m_items[index];
-    bool changed = false;
-    if (item.title != newTitle) {
-        item.title = newTitle;
-        changed = true;
-    }
-    if (item.dueDate != newDueDate) {
-        item.dueDate = newDueDate;
-        changed = true;
-    }
-    if (!changed) return;
+    const QString dataDir = QDir(QStringLiteral(TODO_PROJECT_DIR)).filePath("data");
+    QFile legacyFile(QDir(dataDir).filePath("tasks.json"));
+    if (!legacyFile.exists())
+        return false;
 
-    beginResetModel();
-    endResetModel();
+    if (!legacyFile.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to open legacy JSON file:" << legacyFile.fileName();
+        return false;
+    }
 
-    saveToFile();
+    const QJsonDocument document = QJsonDocument::fromJson(legacyFile.readAll());
+    legacyFile.close();
+
+    QJsonArray tasksArray;
+    QDate importedLastDate;
+    if (document.isArray()) {
+        tasksArray = document.array();
+    } else if (document.isObject()) {
+        const QJsonObject rootObject = document.object();
+        tasksArray = rootObject.value("tasks").toArray();
+        importedLastDate = QDate::fromString(rootObject.value("lastDate").toString(), Qt::ISODate);
+    } else {
+        qWarning() << "Legacy JSON format is invalid:" << legacyFile.fileName();
+        return false;
+    }
+
+    QList<TodoItem> importedItems;
+    for (const QJsonValue &value : tasksArray) {
+        const QJsonObject object = value.toObject();
+        TodoItem item;
+        item.title = object.value("title").toString().trimmed();
+        item.completed = object.value("completed").toBool();
+        item.dueDate = QDate::fromString(object.value("dueDate").toString(), Qt::ISODate);
+        item.createdDate = QDate::fromString(object.value("createdDate").toString(), Qt::ISODate);
+
+        if (item.title.isEmpty() || !item.dueDate.isValid() || !item.createdDate.isValid())
+            continue;
+
+        int insertedId = 0;
+        if (!insertTask(item, &insertedId))
+            return false;
+
+        item.id = insertedId;
+        importedItems.append(item);
+    }
+
+    if (!importedItems.isEmpty()) {
+        beginResetModel();
+        m_items = importedItems;
+        endResetModel();
+    }
+
+    if (importedLastDate.isValid()) {
+        m_lastDate = importedLastDate;
+        saveLastDate(m_lastDate);
+    }
+
+    return !importedItems.isEmpty();
 }
+
+bool TodoModel::insertTask(const TodoItem &item, int *insertedId)
+{
+    QSqlQuery query(m_database);
+    query.prepare("INSERT INTO tasks (title, completed, dueDate, createdDate) "
+                  "VALUES (?, ?, ?, ?)");
+    query.addBindValue(item.title);
+    query.addBindValue(item.completed ? 1 : 0);
+    query.addBindValue(item.dueDate.toString(Qt::ISODate));
+    query.addBindValue(item.createdDate.toString(Qt::ISODate));
+
+    if (!query.exec()) {
+        qWarning() << "Failed to insert task:" << query.lastError().text();
+        return false;
+    }
+
+    if (insertedId)
+        *insertedId = query.lastInsertId().toInt();
+
+    return true;
+}
+
+bool TodoModel::updateTaskRecord(const TodoItem &item)
+{
+    QSqlQuery query(m_database);
+    query.prepare("UPDATE tasks SET title = ?, completed = ?, dueDate = ?, createdDate = ? "
+                  "WHERE id = ?");
+    query.addBindValue(item.title);
+    query.addBindValue(item.completed ? 1 : 0);
+    query.addBindValue(item.dueDate.toString(Qt::ISODate));
+    query.addBindValue(item.createdDate.toString(Qt::ISODate));
+    query.addBindValue(item.id);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to update task:" << query.lastError().text();
+        return false;
+    }
+
+    return query.numRowsAffected() > 0;
+}
+
+bool TodoModel::deleteTaskRecord(int id)
+{
+    QSqlQuery query(m_database);
+    query.prepare("DELETE FROM tasks WHERE id = ?");
+    query.addBindValue(id);
+
+    if (!query.exec()) {
+        qWarning() << "Failed to delete task:" << query.lastError().text();
+        return false;
+    }
+
+    return query.numRowsAffected() > 0;
+}
+
+void TodoModel::migrateTasks(const QDate &targetDate)
+{
+    QList<TodoItem> pendingItems;
+    for (const TodoItem &item : m_items) {
+        if (!item.completed && item.dueDate <= m_lastDate)
+            pendingItems.append(item);
+    }
+
+    for (const TodoItem &item : pendingItems) {
+        addItem(item.title, targetDate);
+    }
+}
+
+QDate TodoModel::loadLastDate() const
+{
+    QSqlQuery query(m_database);
+    query.prepare("SELECT value FROM app_meta WHERE key = ?");
+    query.addBindValue("lastDate");
+    if (!query.exec()) {
+        qWarning() << "Failed to load lastDate:" << query.lastError().text();
+        return {};
+    }
+
+    if (!query.next())
+        return {};
+
+    return QDate::fromString(query.value(0).toString(), Qt::ISODate);
+}
+
+void TodoModel::saveLastDate(const QDate &date) const
+{
+    QSqlQuery query(m_database);
+    query.prepare("INSERT INTO app_meta (key, value) VALUES (?, ?) "
+                  "ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+    query.addBindValue("lastDate");
+    query.addBindValue(date.toString(Qt::ISODate));
+
+    if (!query.exec())
+        qWarning() << "Failed to save lastDate:" << query.lastError().text();
+}
+
 QList<TodoItem> TodoModel::filteredItems() const
 {
-    QList<TodoItem> result;
-    if (m_filterMode == AllTasks) {
-        result = m_items;
-    } else if (m_filterMode == TodayTasks) {
-        QDate today = QDate::currentDate();
-        for (const TodoItem &item : m_items) {
-            if (item.dueDate == today && !item.completed)
-                result.append(item);
-        }
+    QList<TodoItem> visibleItems;
+    for (const TodoItem &item : m_items) {
+        if (matchesCurrentFilter(item))
+            visibleItems.append(item);
     }
-    return result;
+    return visibleItems;
 }
 
-void TodoModel::setFilterMode(FilterMode mode)
+bool TodoModel::matchesCurrentFilter(const TodoItem &item) const
 {
-    if (m_filterMode == mode)
-        return;
-    m_filterMode = mode;
-    beginResetModel();
-    endResetModel();
-    emit filterModeChanged();
+    if (m_filterMode == AllTasks)
+        return item.dueDate == m_currentDate;
+
+    return item.dueDate == m_currentDate && !item.completed;
+}
+
+int TodoModel::indexOfItemById(int id) const
+{
+    for (int i = 0; i < m_items.size(); ++i) {
+        if (m_items.at(i).id == id)
+            return i;
+    }
+
+    return -1;
+}
+
+int TodoModel::visibleRowForSourceRow(int sourceRow) const
+{
+    int visibleRow = 0;
+    for (int i = 0; i < sourceRow; ++i) {
+        if (matchesCurrentFilter(m_items.at(i)))
+            ++visibleRow;
+    }
+    return visibleRow;
 }

@@ -2,9 +2,10 @@
 #define TODOMODEL_H
 
 #include <QAbstractListModel>
-#include <QList>
 #include <QDate>
-#include <QTimer>           // 新增
+#include <QList>
+#include <QSqlDatabase>
+
 #include "todoitem.h"
 
 class TodoModel : public QAbstractListModel
@@ -21,14 +22,15 @@ public:
         CreatedDateRole,
         CompletedRole
     };
+
     enum FilterMode {
         AllTasks,
         TodayTasks
     };
-    Q_ENUM(FilterMode)   // 使枚举在 QML 中可用
+    Q_ENUM(FilterMode)
 
     explicit TodoModel(QObject *parent = nullptr);
-    ~TodoModel();
+    ~TodoModel() override = default;
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -39,6 +41,7 @@ public:
     Q_INVOKABLE void setCompleted(int id, bool completed);
     Q_INVOKABLE void setCurrentDate(const QDate &date);
     Q_INVOKABLE void updateTask(int id, const QString &newTitle, const QDate &newDueDate);
+    Q_INVOKABLE bool hasTasksForDate(const QDate &date) const;
 
     QDate currentDate() const { return m_currentDate; }
     FilterMode filterMode() const { return m_filterMode; }
@@ -49,17 +52,23 @@ signals:
     void filterModeChanged();
 
 private:
-    void saveToFile() const;
-    void loadFromFile();
-    int getNextId() const;
-    QList<TodoItem> filterByDate() const;          // 原有按日期过滤（可保留）
-    QList<TodoItem> filteredItems() const;         // 按当前过滤模式过滤
+    bool loadFromDatabase();
+    bool importLegacyJsonIfNeeded();
+    bool insertTask(const TodoItem &item, int *insertedId);
+    bool updateTaskRecord(const TodoItem &item);
+    bool deleteTaskRecord(int id);
     void migrateTasks(const QDate &targetDate);
+    QDate loadLastDate() const;
+    void saveLastDate(const QDate &date) const;
 
-    QTimer m_saveTimer;
+    QList<TodoItem> filteredItems() const;
+    bool matchesCurrentFilter(const TodoItem &item) const;
+    int indexOfItemById(int id) const;
+    int visibleRowForSourceRow(int sourceRow) const;
+
+    QSqlDatabase m_database;
     QList<TodoItem> m_items;
     QDate m_currentDate;
-    QString m_filePath;
     QDate m_lastDate;
     FilterMode m_filterMode = AllTasks;
 };
